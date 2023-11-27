@@ -1,0 +1,158 @@
+---
+title: "Untitled"
+author: "Proma Anwar"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#title: "Variable Selection for Multiple Linear Regression in R"
+#output: word_document
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+#We will have some examples on variable selection for multiple linear regression. Please first of all install the needed packages with the install.packages() function. And then, call the following libraries.
+
+library(RCurl) # getURL 
+library(MASS) # stepwise regression
+library(leaps) # all subsets regression
+#install.packages('tidyr')
+library(tidyr)
+library(dplyr)
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+```
+
+
+```{r pressure, echo=FALSE}
+c_prices <- read.csv("used_cars.csv", header = TRUE, stringsAsFactors = FALSE, na.strings = c(NA, '', '?'))
+c_prices_bkup <- c_prices
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+str(c_prices)
+```
+```{r}
+sum(is.na(c_prices$fuel_type))
+sum(is.na(c_prices$accident))
+sum(is.na(c_prices$clean_title))
+```
+```{r}
+c_prices$milage <- gsub("\\mi.", "", c_prices$milage)
+c_prices$milage <- gsub("\\,", "", c_prices$milage)
+c_prices$milage <- as.numeric(c_prices$milage)
+c_prices$price <- gsub("\\$", "", c_prices$price)
+c_prices$price <- gsub("\\,", "", c_prices$price)
+c_prices$price <- as.numeric(c_prices$price)
+c_prices$price
+```
+```{r}
+
+#c_prices %>% replace_na(list(clean_title = "No", fuel_type = "Gasoline", accident = "None reported"))
+
+c_prices<- c_prices %>% mutate(clean_title = replace(clean_title, is.na(clean_title),  "No"))
+c_prices<- c_prices %>% mutate(fuel_type = replace(fuel_type, is.na(fuel_type), "Gasoline"))
+c_prices<- c_prices %>% mutate(accident = replace(accident, is.na(accident), "None reported"))
+ 
+
+```
+
+```{r}
+c_prices$clean_title  <- as.factor(c_prices$clean_title) 
+c_prices$accident  <- as.factor(c_prices$accident) 
+c_prices$model_year  <- as.numeric(c_prices$model_year) 
+c_prices$model  <- as.factor(c_prices$model) 
+c_prices$brand  <- as.factor(c_prices$brand) 
+c_prices$engine  <- as.factor(c_prices$engine) 
+c_prices$transmission  <- as.factor(c_prices$transmission) 
+c_prices$ext_col  <- as.factor(c_prices$ext_col) 
+c_prices$int_col  <- as.factor(c_prices$int_col) 
+c_prices$fuel_type  <- as.factor(c_prices$fuel_type) 
+
+#str(c_prices)
+c_prices$clean_title
+```
+```{r}
+#present_year = 2023
+#c_prices$age = present_year - c_prices$model_year
+
+```
+
+```{r}
+#c_prices$age
+```
+
+
+```{r}
+rn_train <- sample(nrow(c_prices), floor(nrow(c_prices)*0.7))
+train <- c_prices[rn_train,]
+test <- c_prices[-rn_train,]
+
+```
+
+
+```{r}
+model_mlr <- lm(price~milage+fuel_type+accident+clean_title, data=train) 
+
+
+prediction <- predict(model_mlr, interval="prediction", newdata =test)
+```
+
+```{r}
+
+summary(model_mlr)
+```
+
+
+```{r}
+full <- lm(price~ milage + fuel_type + accident + 
+    clean_title,data=c_prices)
+null <- lm(price~1,data=c_prices)
+stepF <- stepAIC(null, scope=list(lower=null, upper=full), direction= "forward", trace=TRUE)
+summary(stepF)
+```
+
+```{r}
+errors <- prediction[,"fit"] - test$price
+hist(errors)
+```
+
+```{r}
+rmse <- sqrt(sum((prediction[,"fit"] - test$price)^2)/nrow(test))
+rel_change <- 1 - ((test$price - abs(errors)) / test$price)
+pred25 <- table(rel_change<0.25)["TRUE"] / nrow(test)
+paste("RMSE:", rmse)
+paste("PRED(25):", pred25)
+```
+```{r}
+full <- lm(price~ milage + fuel_type + accident + clean_title,data=c_prices)
+null <- lm(price~1,data=c_prices)
+stepF <- stepAIC(null, scope=list(lower=null, upper=full), direction= "forward", trace=TRUE)
+summary(stepF)
+```
+```{r}
+full <- lm(price~ milage + fuel_type + accident + 
+    clean_title,data=c_prices)
+stepB <- stepAIC(full, direction= "backward", trace=TRUE)
+summary(stepB)
+```
+```{r}
+subsets<-regsubsets(price~ milage + fuel_type + accident + 
+    clean_title,data=c_prices, nbest=1,)
+sub.sum <- summary(subsets)
+as.data.frame(sub.sum$outmat)
+```
+
